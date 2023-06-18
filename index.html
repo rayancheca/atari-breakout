@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Gamedev Canvas Workshop - lesson 10: finishing up</title>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <style>
+	    * { padding: 0; margin: 0; }
+	    
+		body {
+	        background: #111;
+		}		
+	   
+	    canvas { /*background-image: url('http://www.dyna-image.com/smarteditupfiles/english/app/pic09.jpg');*/
+		 		 background-size: cover;
+	             display: block;
+			 	 margin: 5em auto;
+				 
+				 border: #C0C double 3px;
+
+
+				 }
+    </style>
+</head>
+<body>
+
+<canvas id="myCanvas" width="480" height="320"></canvas>
+
+<script>
+var keys = {};
+	keys.UP = 38;
+	keys.LEFT = 37;
+	keys.RIGHT = 39;
+	keys.DOWN = 40;
+	keys.PAUSE = 80; //tecla p
+	keys.PAUSE2 = 32; //espacio
+	keys.JUMP = 83;  //tecla s
+	keys.FIRE = 65;   //tecla a
+	
+	var DEBUG = false;
+	
+	var JUEGO_PARADO = false;
+	
+    var canvas = document.getElementById("myCanvas");
+    var ctx = canvas.getContext("2d");
+    var ballRadius = 7;
+    var x = canvas.width/2;
+    var y = canvas.height-30;
+    var dx = aleatorio(-4, 4);  // desde -4 hasta +4
+    var dy = -3;  //aleatorio(-5, -4);
+    var paddleHeight = 10;
+    var paddleWidth = 75;
+    var paddleX = (canvas.width-paddleWidth)/2;
+    var rightPressed = false;
+    var leftPressed = false;
+    var pausePressed = false;
+    var brickRowCount = 5;
+    var brickColumnCount = 3;
+    var brickWidth = 85;
+    var brickHeight = 20;
+    var brickPadding = 10;
+    var brickOffsetTop = 30;
+    var brickOffsetLeft = 8;
+    var score = 0;
+    var lives = 1;
+	
+	var current_level = 1;
+	var colores = [ ["#FF0000", "#007777", "#111111"],
+	                [       "", "#00FFFF", "#888888"],
+	                [       "",        "", "#FFFFFF"] ];
+	var velocidades = [1.4, 1.625, 2.25];
+	var imagenes = ['img/fondo-espacial.jpg',
+	                'http://img4.wikia.nocookie.net/__cb20120730200249/ipod/images/6/65/Earth_and_Moon.jpg',
+	                'http://www.dyna-image.com/smarteditupfiles/english/app/pic09.jpg'];
+	var MAX_LEVELS = 2;
+
+    var ESTADO_TRANSICION = true;
+	var MAX_TIEMPO_TRANSICION = 120;
+	var tiempo_transicion = MAX_TIEMPO_TRANSICION;
+	
+	
+    var current_toques;	
+    var bricks = [];
+	
+	function iniciarBricks(){
+       for(c=0; c<brickColumnCount; c++) {
+          bricks[c] = [];
+          for(r=0; r<brickRowCount; r++) {
+		      switch(current_level){
+			      case 1:
+				     current_toques = 1;
+				     break;
+				  case 2:
+				     if(c == 0){
+					    current_toques = 2;
+				     }
+					 else{
+					    current_toques = 1;
+				     }
+				     break;
+				  case 3:
+				     current_toques = 3 - c;
+				     break;
+			  }
+		      current_toques = 
+              bricks[c][r] = { x: 0, y: 0, status: 1, toques: current_toques };
+		  	  if(DEBUG){
+     			bricks[c][r].status = 0;		
+			  }
+          }
+       }		
+	   if(DEBUG){
+	      bricks[brickColumnCount-1][3].status = 1;		
+	      bricks[brickColumnCount-2][2].status = 1;		
+	      bricks[brickColumnCount-3][1].status = 1;		
+       }
+	}
+	
+	$(document).ready(function(){
+	    $("#myCanvas").css("background-image", "url('" + imagenes[0] + "')"); 
+	});
+	
+	iniciarBricks();
+	document.addEventListener("keydown", keyDownHandler, false);
+	document.addEventListener("keyup", keyUpHandler, false);    
+    //document.addEventListener("mousemove", mouseMoveHandler, false);
+
+	function aleatorio(min, max){
+	    var numero;
+        do{		
+		  numero = Math.floor(Math.random() * (max - min + 1) ) + min;
+		}while(numero > -2 && numero < 2 );
+		
+		return numero;
+	}
+	
+	
+    function keyDownHandler(e) {
+        switch(e.keyCode){
+		    case keys.RIGHT:  rightPressed = true;    break;
+		    case keys.LEFT:   leftPressed = true;    break;
+		}
+    }
+    function keyUpHandler(e) {
+        switch(e.keyCode){
+		    case keys.RIGHT:  rightPressed = false;    break;
+		    case keys.LEFT:   leftPressed = false;    break;
+		    case keys.PAUSE:
+		    case keys.PAUSE2:  JUEGO_PARADO = !JUEGO_PARADO;   break;
+        }
+    }
+    /*
+	function mouseMoveHandler(e) {
+        var relativeX = e.clientX - canvas.offsetLeft;
+        if(relativeX > 0 && relativeX < canvas.width) {
+            paddleX = relativeX - paddleWidth/2;
+        }
+    }
+	*/
+    function collisionDetection() {
+        for(c=0; c<brickColumnCount; c++) {
+            for(r=0; r<brickRowCount; r++) {
+                var b = bricks[c][r];
+                if(b.status == 1) {
+                    if(x > b.x && x < b.x+brickWidth && y > b.y && y < b.y+brickHeight) {
+                        dy = -dy;
+						b.toques--;
+						if(b.toques == 0){
+							b.status = 0;
+							score = score + 10;
+							if( todosCero() ) {
+								if(current_level > MAX_LEVELS){
+									alert("YOU WIN, CONGRATS!, your score is: " + score + "!");
+									document.location.reload();
+								}
+								else{
+									current_level++;
+									iniciarBricks();
+									$("#myCanvas").css("background-image", "url('" + imagenes[current_level-1] + "')");
+									x = canvas.width/2;
+									y = canvas.height-30;	
+									dy = velocidades[current_level-1] * dy;	
+                                    ESTADO_TRANSICION=true;		
+									tiempo_transicion=MAX_TIEMPO_TRANSICION;
+									
+									//alert("nuevo nivel: " + current_level);
+								}
+							}
+						}
+                    }
+                }
+            }
+        }
+    }
+
+	function todosCero()
+	{
+        for(c=0; c<brickColumnCount; c++) {
+           for(r=0; r<brickRowCount; r++) {
+              if(bricks[c][r].status != 0){
+                  return false;			
+			  }
+           }
+        }
+        return true;
+		
+	}
+	
+    function drawBall() {
+        ctx.beginPath();
+        ctx.arc(x, y, ballRadius, 0, Math.PI*2);
+        ctx.fillStyle = "yellow";
+        ctx.fill();
+        ctx.closePath();
+    }
+    function drawPaddle() {
+        ctx.beginPath();
+        ctx.rect(paddleX, canvas.height-paddleHeight, paddleWidth, paddleHeight);
+        ctx.fillStyle = "white";
+        ctx.fill();
+        ctx.closePath();
+    }
+    function drawBricks() {
+        for(c=0; c<brickColumnCount; c++) {
+            for(r=0; r<brickRowCount; r++) {
+                if(bricks[c][r].status == 1) {
+                    var brickX = (r*(brickWidth+brickPadding))+brickOffsetLeft;
+                    var brickY = (c*(brickHeight+brickPadding))+brickOffsetTop;
+                    bricks[c][r].x = brickX;
+                    bricks[c][r].y = brickY;
+                    ctx.beginPath();
+                    ctx.rect(brickX, brickY, brickWidth, brickHeight);
+					/*
+					console.log("LEVEL:" + current_level);
+					console.log("bricks[c][r].toques-1: " + bricks[c][r].toques-1);
+					console.log("current_level-1: " + current_level-1);
+                    */
+				    ctx.fillStyle = colores[bricks[c][r].toques-1][current_level-1];
+                    ctx.fill();
+                    ctx.closePath();
+                }
+            }
+        }
+    }
+    function drawScore() {
+        ctx.font = "16px Arial";
+        ctx.fillStyle = "#0095DD";
+        ctx.fillText("Score: "+score, 8, 20);
+    }
+    function drawLives() {
+        ctx.font = "16px Arial";
+        ctx.fillStyle = "#0095DD";
+        ctx.fillText("Lives: "+lives, canvas.width-80, 20);
+    }
+	function drawLevels() {
+        ctx.font = "16px Arial";
+        ctx.fillStyle = "#0095DD";
+        ctx.fillText("Level: "+current_level, canvas.width/2-40, 20);
+    }
+	function drawStatusBar(){
+		drawScore();
+		drawLives();
+		drawLevels();
+    }
+	
+	function drawPause(){
+		//DEBERES
+		ctx.font = "50px Arial";
+		ctx.fillStyle = "#fff";
+	    ctx.fillText("PAUSE", 125, 100);
+	    ctx.fillText("Level: "+current_level, 125, 200);
+		ctx.fillRect(20, 10, 10, 300);
+		ctx.fillRect(450, 10, 10, 300);
+		ctx.fillRect(20, 10, 430, 10);
+		ctx.fillRect(20, 300, 430, 10);
+		/*ctx.fillStyle = "#fff";
+		ctx.rect(20, 20, 150, 100);
+        ctx.stroke();*/
+	}
+	function drawNextLevel(){
+		//DEBERES
+		ctx.font = "80px Arial";
+		ctx.fillStyle = "#fff";
+	    ctx.fillText("Level: "+current_level, 120, 180);
+		ctx.fillRect(20, 10, 10, 300);
+		ctx.fillRect(450, 10, 10, 300);
+		ctx.fillRect(20, 10, 430, 10);
+		ctx.fillRect(20, 300, 430, 10);
+		/*ctx.fillStyle = "#fff";
+		ctx.rect(20, 20, 150, 100);
+        ctx.stroke();*/
+	}
+	
+    function draw() {
+	    /*console.log(JUEGO_PARADO);*/
+		if(JUEGO_PARADO == false){
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			drawBricks();
+			drawBall();
+			drawPaddle();
+			drawStatusBar();
+			collisionDetection();
+
+			if(ESTADO_TRANSICION){
+			    drawNextLevel();
+				tiempo_transicion--;
+				if(tiempo_transicion==0){
+				   ESTADO_TRANSICION=false;
+				}
+			}
+			
+			if(x + dx > canvas.width-ballRadius || x + dx < ballRadius) {
+				dx = -dx;
+			}
+			if(y + dy < ballRadius) {
+				dy = -dy;
+			}
+			else if(y + dy > canvas.height-ballRadius) {
+				if(x > paddleX && x < paddleX + paddleWidth) {
+					dy = -dy;
+				}
+				else {
+					lives--;
+					if(lives == 0) {
+						alert("GAME OVER!, your score is: " + score + "!");
+						document.location.reload();
+					}
+					else {
+						//x = canvas.width/2;
+						x = paddleX;
+						y = canvas.height-30;
+						dx = aleatorio(-4, 4);
+						dy = -3 * velocidades[current_level-1];
+						//paddleX = (canvas.width-paddleWidth)/2;
+					}
+				}
+			}
+
+			if(rightPressed && paddleX < canvas.width-paddleWidth) {
+				paddleX += 7;
+			}
+			else if(leftPressed && paddleX > 0) {
+				paddleX -= 7;
+			}
+
+			x += dx;
+			y += dy;
+		}
+		else{
+		    drawPause();
+		}
+        requestAnimationFrame(draw);
+    }
+
+
+	
+    draw();
+</script>
+
+</body>
+</html>
